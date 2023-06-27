@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
@@ -12,25 +10,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-type Event struct {
-	Pk       string `json:"pk"`
-	Sk       string `json:"sk"`
+type User struct {
+	PK       string `json:"pk"`
 	Name     string `json:"name"`
-	Capacity string `json:"capacity"`
-	Date     string `json:"date"`
-	Hour     string `json:"hour"`
-	Status   string `json:"status"`
-	Email    string `json:"email"`
-	Eventid  string `json:"eventid"`
-	Gender   string `json:"gender"`
 	Lastname string `json:"lastname"`
 	Phone    string `json:"phone"`
+	Date     string `json:"date"`
+	Status   string `json:"status"`
+	EventID  string `json:"eventid"`
 }
 
-func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-
-	paramValue := request.QueryStringParameters["param"]
-
+func handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1"),
 	})
@@ -40,43 +30,43 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	}
 
 	svc := dynamodb.New(sess)
-	input := &dynamodb.QueryInput{
+
+	eventID := request.QueryStringParameters["param"]
+
+	queryInput := &dynamodb.QueryInput{
 		TableName: aws.String("eventstable"),
-		IndexName: aws.String("sk-index"),
+		IndexName: aws.String("eventid-index"),
 		KeyConditions: map[string]*dynamodb.Condition{
-			"sk": {
+			"eventid": {
 				ComparisonOperator: aws.String("EQ"),
 				AttributeValueList: []*dynamodb.AttributeValue{
 					{
-						S: aws.String("METADATA#" + paramValue),
+						S: aws.String("Event#" + eventID),
 					},
 				},
 			},
 		},
 	}
 
-	result, err := svc.Query(input)
-
+	result, err := svc.Query(queryInput)
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
 
-	var eventsList []Event
-	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &eventsList)
-
+	var users []User
+	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, &users)
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
 
-	responseBody, err := json.Marshal(eventsList)
-
+	usersJson, err := json.Marshal(users)
 	if err != nil {
 		return events.APIGatewayProxyResponse{}, err
 	}
 
 	return events.APIGatewayProxyResponse{
+		Body:       string(usersJson),
 		StatusCode: 200,
-		Body:       string(responseBody),
 	}, nil
 }
 
